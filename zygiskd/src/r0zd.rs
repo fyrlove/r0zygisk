@@ -6,6 +6,7 @@ use log::{debug, error, info, trace, warn};
 use passfd::FdPassingExt;
 use rustix::fs::{fcntl_setfd, FdFlags};
 use std::fs;
+use std::fmt::Write as _;
 use std::io::Error;
 use std::ops::Deref;
 use std::os::fd::{AsFd, OwnedFd, RawFd};
@@ -30,46 +31,30 @@ struct Context {
 }
 
 static TMP_PATH: LateInit<String> = LateInit::new();
-static CONTROLLER_SOCKET: LateInit<String> = LateInit::new();
 static PATH_CP_NAME: LateInit<String> = LateInit::new();
+static STATUS_PATH: LateInit<String> = LateInit::new();
 
 pub fn main() -> Result<()> {
     info!("Welcome to r0z ({}) !", constants::ZKSU_VERSION);
 
     TMP_PATH.init(std::env::var("TMP_PATH")?);
-    CONTROLLER_SOCKET.init(format!("{}/init_monitor", TMP_PATH.deref()));
     PATH_CP_NAME.init(format!(
         "{}/{}",
         TMP_PATH.deref(),
         lp_select!("/cp32.sock", "/cp64.sock")
     ));
+    STATUS_PATH.init(format!("{}/status.json", TMP_PATH.deref()));
 
     let arch = get_arch()?;
     debug!("Daemon architecture: {arch}");
     let modules = load_modules(arch)?;
-
-    {
-        let mut msg = Vec::<u8>::new();
-        let info = match root_impl::get_impl() {
-            root_impl::RootImpl::KernelSU | root_impl::RootImpl::Magisk => {
-                msg.extend_from_slice(&constants::DAEMON_SET_INFO.to_le_bytes());
-                format!(
-                    "Root: {:?},module_count: {}",
-                    root_impl::get_impl(),
-                    modules.len()
-                )
-            }
-            _ => {
-                msg.extend_from_slice(&constants::DAEMON_SET_ERROR_INFO.to_le_bytes());
-                format!("Invalid root implementation: {:?}", root_impl::get_impl())
-            }
-        };
-        msg.extend_from_slice(&(info.len() as u32 + 1).to_le_bytes());
-        msg.extend_from_slice(info.as_bytes());
-        msg.extend_from_slice(&[0u8]);
-        utils::unix_datagram_sendto(&CONTROLLER_SOCKET, msg.as_slice())
-            .expect("failed to send info");
-    }
+    let daemon_info = match root_impl::get_impl() {
+        root_impl::RootImpl::KernelSU | root_impl::RootImpl::Magisk => {
+            format!("Root: {:?},module_count: {}", root_impl::get_impl(), modules.len())
+        }
+        _ => format!("Invalid root implementation: {:?}", root_impl::get_impl()),
+    };
+    update_status_json(false, &daemon_info)?;
 
     let context = Context { modules };
     let context = Arc::new(context);
@@ -82,8 +67,7 @@ pub fn main() -> Result<()> {
         trace!("New daemon action {:?}", action);
         match action {
             DaemonSocketAction::PingHeartbeat => {
-                let value = constants::ZYGOTE_INJECTED;
-                utils::unix_datagram_sendto(&CONTROLLER_SOCKET, &value.to_le_bytes())?;
+                update_status_json(true, &daemon_info)?;
             }
             DaemonSocketAction::ZygoteRestart => {
                 info!("Zygote restarted, clean up companions");
@@ -91,10 +75,10 @@ pub fn main() -> Result<()> {
                     let mut companion = module.companion.lock().unwrap();
                     companion.take();
                 }
+                update_status_json(false, &daemon_info)?;
             }
             DaemonSocketAction::SystemServerStarted => {
-                let value = constants::SYSTEM_SERVER_STARTED;
-                utils::unix_datagram_sendto(&CONTROLLER_SOCKET, &value.to_le_bytes())?;
+                update_status_json(true, &daemon_info)?;
             }
             _ => {
                 thread::spawn(move || {
@@ -106,6 +90,36 @@ pub fn main() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn update_status_json(zygote_injected: bool, daemon_info: &str) -> Result<()> {
+    let mut raw = String::new();
+    let arch_suffix = if cfg!(target_pointer_width = "64") { "64" } else { "32" };
+    let _ = write!(
+        raw,
+        "daemon{}:running,Root: {:?},module_count: {}",
+        arch_suffix,
+        root_impl::get_impl(),
+        daemon_info
+            .rsplit("module_count: ")
+            .next()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0)
+    );
+    let zygote_state = if zygote_injected { "injected" } else { "not_injected" };
+    let json = if cfg!(target_pointer_width = "64") {
+        format!(
+            "{{\n  \"monitor\": \"native_bridge\",\n  \"mode\": \"native_bridge\",\n  \"stop_reason\": \"\",\n  \"zygote64\": \"{}\",\n  \"daemon64\": \"running\",\n  \"daemon64_info\": {:?},\n  \"zygote32\": \"unsupported\",\n  \"daemon32\": \"unsupported\",\n  \"daemon32_info\": \"\",\n  \"raw\": {:?}\n}}\n",
+            zygote_state, daemon_info, raw
+        )
+    } else {
+        format!(
+            "{{\n  \"monitor\": \"native_bridge\",\n  \"mode\": \"native_bridge\",\n  \"stop_reason\": \"\",\n  \"zygote64\": \"unsupported\",\n  \"daemon64\": \"unsupported\",\n  \"daemon64_info\": \"\",\n  \"zygote32\": \"{}\",\n  \"daemon32\": \"running\",\n  \"daemon32_info\": {:?},\n  \"raw\": {:?}\n}}\n",
+            zygote_state, daemon_info, raw
+        )
+    };
+    fs::write(STATUS_PATH.deref(), json)?;
     Ok(())
 }
 
@@ -186,7 +200,6 @@ fn spawn_companion(name: &str, lib_fd: RawFd) -> Result<Option<UnixStream>> {
 
     // FIXME: avoid getting self path from arg0
     let process = std::env::args().next().unwrap();
-    let nice_name = process.split('/').last().unwrap();
 
     unsafe {
         let pid = libc::fork();

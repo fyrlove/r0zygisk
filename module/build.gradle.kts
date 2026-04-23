@@ -124,26 +124,38 @@ androidComponents.onVariants { variant ->
                     set.add(Pair(root.file("mazoku").asFile, null))
                     set.add(
                         Pair(
-                            root.file("lib/libr0z.so").asFile,
-                            root.file("lib/$abi32/libr0z.so").asFile
+                            root.file("system/lib/libr0zgk.so").asFile,
+                            root.file("lib/$abi32/libr0zgk.so").asFile
                         )
                     )
                     set.add(
                         Pair(
-                            root.file("lib64/libr0z.so").asFile,
-                            root.file("lib/$abi64/libr0z.so").asFile
+                            root.file("system/lib64/libr0zgk.so").asFile,
+                            root.file("lib/$abi64/libr0zgk.so").asFile
                         )
                     )
                     set.add(
                         Pair(
-                            root.file("bin/r0z-trace32").asFile,
-                            root.file("lib/$abi32/libr0z_ptrace.so").asFile
+                            root.file("system/lib/libzn_loader.so").asFile,
+                            root.file("lib/$abi32/libzn_loader.so").asFile
                         )
                     )
                     set.add(
                         Pair(
-                            root.file("bin/r0z-trace64").asFile,
-                            root.file("lib/$abi64/libr0z_ptrace.so").asFile
+                            root.file("system/lib64/libzn_loader.so").asFile,
+                            root.file("lib/$abi64/libzn_loader.so").asFile
+                        )
+                    )
+                    set.add(
+                        Pair(
+                            root.file("system/lib/libpayload.so").asFile,
+                            root.file("lib/$abi32/libpayload.so").asFile
+                        )
+                    )
+                    set.add(
+                        Pair(
+                            root.file("system/lib64/libpayload.so").asFile,
+                            root.file("lib/$abi64/libpayload.so").asFile
                         )
                     )
                     set.add(

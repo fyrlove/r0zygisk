@@ -27,7 +27,7 @@ static void mask_process_name(int argc, char **argv, const char *name) {
 }
 
 int main(int argc, char **argv) {
-    zygiskd::Init(getenv("TMP_PATH"));
+    r0zd::Init(getenv("TMP_PATH"));
     if (argc >= 2 && argv[1] == "monitor"sv) {
         mask_process_name(argc, argv, "netd");
         init_monitor();
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     } else if (argc >= 3 && argv[1] == "trace"sv) {
         mask_process_name(argc, argv, sizeof(void*) == 8 ? "usap64" : "usap32");
         if (argc >= 4 && argv[3] == "--restart"sv) {
-            zygiskd::ZygoteRestart();
+            r0zd::ZygoteRestart();
         }
         auto pid = strtol(argv[2], 0, 0);
         if (!trace_zygote(pid)) {

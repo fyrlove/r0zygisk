@@ -1,6 +1,5 @@
 MODDIR=${0%/*}/..
 
-export TMP_PATH=/sbin
-[ -d /sbin ] || export TMP_PATH=/debug_ramdisk
+export TMP_PATH="$MODDIR"
 
-exec $MODDIR/bin/r0z-trace64 ctl $*
+exec "$MODDIR/bin/r0zd" "$@"

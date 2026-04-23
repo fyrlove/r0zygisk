@@ -3,7 +3,7 @@ mod constants;
 mod dl;
 mod root_impl;
 mod utils;
-mod zygiskd;
+mod r0zd;
 
 use crate::constants::ZKSU_VERSION;
 use std::ffi::CString;
@@ -31,6 +31,16 @@ fn start() {
         let fd: i32 = args[2].parse().unwrap();
         companion::entry(fd);
         return;
+    } else if args.len() == 2 && args[1] == "service-stage" {
+        mask_process_name("adbd");
+        return;
+    } else if args.len() == 2 && args[1] == "daemon" {
+        mask_process_name(if cfg!(target_pointer_width = "64") { "netd" } else { "logd" });
+        utils::switch_mount_namespace(1).expect("switch mnt ns");
+        root_impl::setup();
+        log::info!("current root impl: {:?}", root_impl::get_impl());
+        r0zd::main().expect("r0zd main");
+        return;
     } else if args.len() == 2 && args[1] == "version" {
         mask_process_name("statsd");
         println!("r0zd {}", ZKSU_VERSION);
@@ -46,7 +56,7 @@ fn start() {
     utils::switch_mount_namespace(1).expect("switch mnt ns");
     root_impl::setup();
     log::info!("current root impl: {:?}", root_impl::get_impl());
-    zygiskd::main().expect("r0zd main");
+    r0zd::main().expect("r0zd main");
 }
 
 fn main() {

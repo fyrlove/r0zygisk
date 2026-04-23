@@ -8,20 +8,26 @@ using namespace std;
 void *self_handle = nullptr;
 
 extern "C" [[gnu::visibility("default")]]
-void entry(void* handle, const char* path) {
+bool zygisk_entry(void* handle, const char* path) {
     LOGI("r0z library injected, version %s", ZKSU_VERSION);
     self_handle = handle;
-    zygiskd::Init(path);
+    r0zd::Init(path);
 
-    if (!zygiskd::PingHeartbeat()) {
+    if (!r0zd::PingHeartbeat()) {
         LOGE("r0zd is not running");
-        return;
+        return false;
     }
 
 #ifdef NDEBUG
-    logging::setfd(zygiskd::RequestLogcatFd());
+    logging::setfd(r0zd::RequestLogcatFd());
 #endif
 
     LOGI("Start hooking");
     hook_functions();
+    return true;
+}
+
+extern "C" [[gnu::visibility("default")]]
+void entry(void* handle, const char* path) {
+    (void) zygisk_entry(handle, path);
 }

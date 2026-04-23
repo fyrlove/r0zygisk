@@ -3,31 +3,28 @@
 #include <android/api-level.h>
 #include <cstdint>
 
-template<unsigned>
-struct NativeBridgeCallbacks;
+using NativeBridgeRuntimeCallbacks = void;
+using NativeBridgeNamespace = void;
+using NativeBridgeSignalHandlerFn = void (*)();
 
-template<>
-struct NativeBridgeCallbacks<__ANDROID_API_Q__> {
-    [[maybe_unused]] uint32_t version;
-    [[maybe_unused]] void *initialize;
-    [[maybe_unused]] void *loadLibrary;
-    [[maybe_unused]] void *getTrampoline;
-    [[maybe_unused]] void *isSupported;
-    [[maybe_unused]] void *getAppEnv;
-    [[maybe_unused]] void *isCompatibleWith;
-    [[maybe_unused]] void *getSignalHandler;
-    [[maybe_unused]] void *unloadLibrary;
-    [[maybe_unused]] void *getError;
-    [[maybe_unused]] void *isPathSupported;
-    [[maybe_unused]] void *initAnonymousNamespace;
-    [[maybe_unused]] void *createNamespace;
-    [[maybe_unused]] void *linkNamespaces;
-    [[maybe_unused]] void *loadLibraryExt;
-    [[maybe_unused]] void *getVendorNamespace;
-    [[maybe_unused]] void *getExportedNamespace;
-};
-
-template<>
-struct NativeBridgeCallbacks<__ANDROID_API_R__> : NativeBridgeCallbacks<__ANDROID_API_Q__> {
-    [[maybe_unused]] void *preZygoteFork;
+struct NativeBridgeCallbacks {
+    uint32_t version;
+    bool (*initialize)(const NativeBridgeRuntimeCallbacks*, const char*, const char*);
+    void* (*loadLibrary)(const char*, int);
+    void* (*getTrampoline)(void*, const char*, const char*, uint32_t);
+    bool (*isSupported)(const char*);
+    const char* (*getAppEnv)(const char*);
+    bool (*isCompatibleWith)(uint32_t);
+    NativeBridgeSignalHandlerFn (*getSignalHandler)(int);
+    int (*unloadLibrary)(void*);
+    const char* (*getError)();
+    bool (*isPathSupported)(const char*);
+    bool (*initAnonymousNamespace)(const char*, const char*);
+    NativeBridgeNamespace* (*createNamespace)(const char*, const char*, const char*, uint64_t,
+                                              const char*, NativeBridgeNamespace*);
+    bool (*linkNamespaces)(NativeBridgeNamespace*, NativeBridgeNamespace*, const char*);
+    void* (*loadLibraryExt)(const char*, int, const void*);
+    NativeBridgeNamespace* (*getVendorNamespace)();
+    NativeBridgeNamespace* (*getExportedNamespace)(const char*);
+    void (*preZygoteFork)();
 };

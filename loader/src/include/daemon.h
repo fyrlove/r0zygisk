@@ -42,7 +42,7 @@ private:
     Fd fd_ = -1;
 };
 
-namespace zygiskd {
+namespace r0zd {
 
     struct Module {
         std::string name;

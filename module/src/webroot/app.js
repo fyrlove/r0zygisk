@@ -3,10 +3,6 @@ let moduleDir = "/data/adb/modules/r0z";
 const locateModuleShell = "MODDIR=\"\"; for base in /data/adb/modules /data/adb/modules_update /data/adb/ksu/modules /data/adb/ap/modules; do [ -d \"$base\" ] || continue; for prop in \"$base\"/*/module.prop; do [ -f \"$prop\" ] || continue; if grep -q '^id=r0z$' \"$prop\" 2>/dev/null || grep -q '^name=r0z$' \"$prop\" 2>/dev/null; then MODDIR=${prop%/module.prop}; break 2; fi; done; done; [ -n \"$MODDIR\" ] || MODDIR=/data/adb/modules/r0z";
 let callbackCounter = 0;
 
-function ctlPath() {
-  return `${moduleDir}/bin/r0z-ctl`;
-}
-
 const els = {
   statusText: document.getElementById("statusText"),
   message: document.getElementById("message"),
@@ -221,9 +217,6 @@ function setDot(dot, ok) {
 
 function setBusy(isBusy) {
   els.refresh.disabled = isBusy;
-  document.querySelectorAll("[data-command]").forEach((button) => {
-    button.disabled = isBusy;
-  });
 }
 
 function renderModules(modules) {
@@ -249,14 +242,16 @@ function renderModules(modules) {
 function renderDashboard(prop, statusText, processes, modules) {
   const status = readStatus(statusText, prop);
   const json = status.json || {};
-  const monitorOk = json.monitor === "tracing" || status.monitor.includes("tracing") || /r0z-trace/.test(processes);
   const daemonOk = json.daemon64 === "running" || json.daemon32 === "running" || status.daemons.some((item) => item.includes("running")) || /r0zd/.test(processes);
   const zygoteOk = json.zygote64 === "injected" || json.zygote32 === "injected" || status.zygotes.some((item) => /:injected\b/.test(item));
-  const score = [monitorOk, daemonOk, zygoteOk].filter(Boolean).length;
+  const bridgeOk = Boolean(prop["native.bridge"] || /libzn_loader\.so/.test(statusText));
+  const score = [bridgeOk, daemonOk, zygoteOk].filter(Boolean).length;
 
   els.healthScore.textContent = `${score}/3`;
-  els.monitorTitle.textContent = monitorOk ? "正在注入" : status.monitor.includes("exited") ? "监控已退出" : "追踪未运行";
-  els.monitorDesc.textContent = status.raw || "还没有写入 monitor 状态，可能刚安装或管理器未刷新模块描述。";
+  els.monitorTitle.textContent = zygoteOk ? "已注入" : daemonOk ? "等待 zygote 回写" : "等待 daemon 启动";
+  els.monitorDesc.textContent = bridgeOk
+    ? "native bridge 已配置，当前等待 daemon 与 zygote 完成状态回写。"
+    : "还没有确认 native bridge 已生效，可能需要完整重启后再刷新。";
 
   setDot(els.daemonDot, daemonOk);
   els.daemonState.textContent = daemonOk ? "运行中" : "未运行";
@@ -283,10 +278,12 @@ async function refreshStatus() {
     `echo "$MODDIR"`,
     `echo '--- module.prop ---'`,
     `cat "$MODDIR/module.prop" 2>/dev/null || true`,
+    `echo '--- bridge.prop ---'`,
+    `getprop ro.dalvik.vm.native.bridge 2>/dev/null || true`,
     `echo '--- status.json ---'`,
     `cat "$MODDIR/status.json" 2>/dev/null || true`,
     `echo '--- processes ---'`,
-    `ps -A 2>/dev/null | grep -E 'r0zd|r0z-trace|app_process' | grep -v grep || true`,
+    `ps -A 2>/dev/null | grep -E 'r0zd|app_process|zygote' | grep -v grep || true`,
     `echo '--- modules ---'`,
     "for d in /data/adb/modules/*; do if [ -d \"$d/zygisk\" ]; then id=$(basename \"$d\"); name=$(sed -n 's/^name=//p' \"$d/module.prop\" 2>/dev/null | head -n 1); ver=$(sed -n 's/^version=//p' \"$d/module.prop\" 2>/dev/null | head -n 1); state=enabled; [ -f \"$d/disable\" ] && state=disabled; [ -n \"$name\" ] || name=\"$id\"; echo \"$id|$name|$ver|$state\"; fi; done",
   ].join("; ");
@@ -297,11 +294,13 @@ async function refreshStatus() {
     if (detectedDir && detectedDir.trim()) {
       moduleDir = detectedDir.trim();
     }
-    const propText = (output.match(/--- module\.prop ---\n([\s\S]*?)\n--- status\.json ---/) || [])[1] || "";
+    const propText = (output.match(/--- module\.prop ---\n([\s\S]*?)\n--- bridge\.prop ---/) || [])[1] || "";
+    const bridgeProp = (output.match(/--- bridge\.prop ---\n([\s\S]*?)\n--- status\.json ---/) || [])[1] || "";
     const statusText = (output.match(/--- status\.json ---\n([\s\S]*?)\n--- processes ---/) || [])[1] || "";
     const processes = (output.match(/--- processes ---\n([\s\S]*?)\n--- modules ---/) || [])[1] || "";
     const modulesText = (output.match(/--- modules ---\n([\s\S]*)/) || [])[1] || "";
     const prop = parseKeyValue(propText);
+    prop["native.bridge"] = bridgeProp.trim();
     const modules = parseModules(modulesText);
 
     els.statusText.textContent = output.trim() || "没有读取到状态输出";
@@ -312,11 +311,6 @@ async function refreshStatus() {
       "无法直接执行 WebUI 命令。",
       "",
       String(error.message || error),
-      "",
-      "可以在 root shell 中手动执行：",
-      `${ctlPath()} start`,
-      `${ctlPath()} stop`,
-      `${ctlPath()} exit`,
     ].join("\n");
     els.healthScore.textContent = "--";
     els.monitorTitle.textContent = "无法连接执行接口";
@@ -333,28 +327,6 @@ async function refreshStatus() {
   }
 }
 
-async function sendControl(action) {
-  setBusy(true);
-  els.message.textContent = `正在执行 ${action}...`;
-  try {
-    const output = await run([
-      locateModuleShell,
-      `echo "MODDIR=$MODDIR"`,
-      `if [ -x "$MODDIR/bin/r0z-ctl" ]; then "$MODDIR/bin/r0z-ctl" ${action}; else echo "找不到 $MODDIR/bin/r0z-ctl"; exit 127; fi`,
-    ].join("; "));
-    const detectedDir = (output.match(/MODDIR=([^\n]+)/) || [])[1];
-    if (detectedDir && detectedDir.trim()) {
-      moduleDir = detectedDir.trim();
-    }
-    els.message.textContent = output.trim() || `${action} 已发送。`;
-    await refreshStatus();
-  } catch (error) {
-    els.message.textContent = `执行失败：${error.message || error}`;
-  } finally {
-    setBusy(false);
-  }
-}
-
 async function copyLog() {
   try {
     await navigator.clipboard.writeText(els.statusText.textContent || "");
@@ -366,11 +338,5 @@ async function copyLog() {
 
 els.refresh.addEventListener("click", refreshStatus);
 els.copyLog.addEventListener("click", copyLog);
-
-document.querySelectorAll("[data-command]").forEach((button) => {
-  button.addEventListener("click", () => {
-    sendControl(button.dataset.command);
-  });
-});
 
 refreshStatus();

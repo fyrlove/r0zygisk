@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.0.1
+
+### Added
+
++ Introduced a new zygisk payload library name: `libr0zgk.so`
++ Added native bridge loader integration that explicitly loads `libr0zgk.so` from `/system/lib(64)`
++ Added package-level consistency checks/sign entries for `libr0zgk.so` in module assembly
+
+### Changed
+
++ Bumped module version to `v1.0.1` and `versionCode` to `2`
++ Updated installer extraction paths and packaging mappings to use `libr0zgk.so` instead of `libzygisk.so`
++ Updated Web UI status description text to reflect the new runtime loader path and library naming
+
+### Notes
+
++ r0zygisk 第二版
++ Release package naming now follows `r0z-v1.0.1-2-<buildType>.zip`
++ Existing unsigned build behavior remains unchanged when `module/private_key` and `module/public_key` are absent
+
 ## v1.0.0
 
 ### Added

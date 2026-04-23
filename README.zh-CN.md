@@ -2,7 +2,7 @@
 
 [English](./README.md)
 
-r0zygisk 是一个独立实现的 Zygisk，提供对 Zygisk API 的支持，可用于 KernelSU，并可替代 Magisk 内置的 Zygisk。
+r0zygisk 是一个独立实现的 R0z，提供对 R0z API 的支持，可用于 KernelSU，并可替代 Magisk 内置的 R0z。
 
 ## 目录结构
 
@@ -55,7 +55,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ### 重要说明
 
 + 不支持从 recovery 安装。
-+ 在 Magisk 环境下，安装 r0zygisk 前必须先关闭内置 Zygisk。
++ 在 Magisk 环境下，安装 r0zygisk 前必须先关闭内置 R0z。
 + 在 KernelSU 环境下，需要同时满足内核侧 KernelSU 版本和 Manager 版本要求。
 
 ## 使用要求
@@ -73,13 +73,13 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ### Magisk
 
 + 最低版本：`26402`
-+ 需要关闭内置 Zygisk
++ 需要关闭内置 R0z
 
 ## 兼容性
 
 目前在 Magisk DenyList 下，隔离进程的 `PROCESS_ON_DENYLIST` 标记还不能被正确设置。
 
-r0zygisk 只保证 Zygisk API 层面的行为兼容，不保证 Magisk 内部私有功能也保持一致。
+r0zygisk 只保证 R0z API 层面的行为兼容，不保证 Magisk 内部私有功能也保持一致。
 
 ## 常见问题
 
@@ -97,7 +97,7 @@ r0zygisk 只保证 Zygisk API 层面的行为兼容，不保证 Magisk 内部私
 
 ### 为什么在 Magisk 上安装失败？
 
-请确认 Magisk 版本不低于 `26402`，并且在安装前已经关闭内置 Zygisk。
+请确认 Magisk 版本不低于 `26402`，并且在安装前已经关闭内置 R0z。
 
 ### 为什么在 KernelSU 上安装失败？
 
@@ -105,7 +105,7 @@ r0zygisk 只保证 Zygisk API 层面的行为兼容，不保证 Magisk 内部私
 
 ## 致谢
 
-+ topjohnwu / Magisk：提供了最初的 Zygisk 设计和相关参考实现
++ topjohnwu / Magisk：提供了最初的 R0z 设计和相关参考实现
 + KernelSU：提供了对应的 root 环境集成基础
 + LSPosed / LSPlt：提供了本项目使用的 native PLT hook 依赖
 

@@ -8,6 +8,7 @@ plugins {
 val verCode: Int by rootProject.extra
 val verName: String by rootProject.extra
 val commitHash: String by rootProject.extra
+val moduleId: String by rootProject.extra
 
 fun Project.findInPath(executable: String, property: String): String? {
     val pathEnv = System.getenv("PATH")
@@ -66,6 +67,7 @@ android {
     buildTypes {
         debug {
             externalNativeBuild.cmake {
+                arguments += "-DMODULE_ID=$moduleId"
                 arguments += "-DZKSU_VERSION=$verName-$verCode-$commitHash-debug"
             }
         }
@@ -73,6 +75,7 @@ android {
             externalNativeBuild.cmake {
                 cFlags += releaseFlags
                 cppFlags += releaseFlags
+                arguments += "-DMODULE_ID=$moduleId"
                 arguments += "-DZKSU_VERSION=$verName-$verCode-$commitHash-release"
             }
         }

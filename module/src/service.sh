@@ -3,7 +3,7 @@
 DEBUG=@DEBUG@
 
 MODDIR=${0%/*}
-if [ "$ZYGISK_ENABLED" ]; then
+if [ "$ZYGISK_ENABLED" = "1" ]; then
   exit 0
 fi
 
@@ -21,3 +21,10 @@ if [ "$(which magisk)" ]; then
     fi
   done
 fi
+
+export TMP_PATH="$MODDIR"
+[ "$DEBUG" = true ] && export RUST_BACKTRACE=1
+if command -v resetprop >/dev/null 2>&1; then
+  resetprop ro.dalvik.vm.native.bridge libzn_loader.so
+fi
+./bin/r0zd service-stage

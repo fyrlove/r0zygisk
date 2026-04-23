@@ -93,7 +93,7 @@ struct ZygiskContext {
     }
     ~ZygiskContext();
 
-    /* Zygisksu changed: Load module fds */
+    /* R0zsu changed: Load module fds */
     void run_modules_pre();
     void run_modules_post();
     DCL_PRE_POST(fork)
@@ -150,7 +150,7 @@ DCL_HOOK_FUNC(int, unshare, int flags) {
             }
         }
 
-        /* Zygisksu changed: No umount app_process */
+        /* R0zsu changed: No umount app_process */
 
         // Restore errno back to 0
         errno = 0;
@@ -425,14 +425,14 @@ bool ZygiskModule::valid() const {
     }
 }
 
-/* Zygisksu changed: Use own zygiskd */
+/* R0zsu changed: Use own r0zd */
 int ZygiskModule::connectCompanion() const {
-    return zygiskd::ConnectCompanion(id);
+    return r0zd::ConnectCompanion(id);
 }
 
-/* Zygisksu changed: Use own zygiskd */
+/* R0zsu changed: Use own r0zd */
 int ZygiskModule::getModuleDir() const {
-    return zygiskd::GetModuleDir(id);
+    return r0zd::GetModuleDir(id);
 }
 
 void ZygiskModule::setOption(zygisk::Option opt) {
@@ -545,9 +545,9 @@ void ZygiskContext::fork_post() {
     g_ctx = nullptr;
 }
 
-/* Zygisksu changed: Load module fds */
+/* R0zsu changed: Load module fds */
 void ZygiskContext::run_modules_pre() {
-    auto ms = zygiskd::ReadModules();
+    auto ms = r0zd::ReadModules();
     auto size = ms.size();
     for (size_t i = 0; i < size; i++) {
         auto& m = ms[i];
@@ -579,10 +579,10 @@ void ZygiskContext::run_modules_post() {
     }
 }
 
-/* Zygisksu changed: Load module fds */
+/* R0zsu changed: Load module fds */
 void ZygiskContext::app_specialize_pre() {
     flags[APP_SPECIALIZE] = true;
-    info_flags = zygiskd::GetProcessFlags(g_ctx->args.app->uid);
+    info_flags = r0zd::GetProcessFlags(g_ctx->args.app->uid);
     if ((info_flags & (PROCESS_IS_MANAGER | PROCESS_ROOT_IS_MAGISK)) == (PROCESS_IS_MANAGER | PROCESS_ROOT_IS_MAGISK)) {
         LOGI("current uid %d is manager!", g_ctx->args.app->uid);
         setenv("ZYGISK_ENABLED", "1", 1);
@@ -625,7 +625,7 @@ void ZygiskContext::nativeSpecializeAppProcess_post() {
     app_specialize_post();
 }
 
-/* Zygisksu changed: No system_server status write back */
+/* R0zsu changed: No system_server status write back */
 void ZygiskContext::nativeForkSystemServer_pre() {
     LOGV("pre  forkSystemServer\n");
     flags[SERVER_FORK_AND_SPECIALIZE] = true;
@@ -635,7 +635,7 @@ void ZygiskContext::nativeForkSystemServer_pre() {
         return;
 
     run_modules_pre();
-    zygiskd::SystemServerStarted();
+    r0zd::SystemServerStarted();
 
     sanitize_fds();
 }
@@ -653,7 +653,7 @@ void ZygiskContext::nativeForkAndSpecialize_pre() {
     LOGV("pre  forkAndSpecialize [%s]\n", process);
 
     flags[APP_FORK_AND_SPECIALIZE] = true;
-    /* Zygisksu changed: No args.app->fds_to_ignore check since we are Android 10+ */
+    /* R0zsu changed: No args.app->fds_to_ignore check since we are Android 10+ */
     if (logging::getfd() != -1) {
         exempted_fds.push_back(logging::getfd());
     }

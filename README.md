@@ -2,7 +2,7 @@
 
 [中文说明](./README.zh-CN.md)
 
-Standalone implementation of Zygisk, providing Zygisk API support for KernelSU and a replacement of Magisk's built-in Zygisk.
+Standalone implementation of R0z, providing R0z API support for KernelSU and a replacement of Magisk's built-in R0z.
 
 ## Layout
 
@@ -55,7 +55,7 @@ If `module/private_key` and `module/public_key` are absent, the module still bui
 ### Important
 
 + Recovery installation is not supported.
-+ On Magisk, built-in Zygisk must be disabled before installing r0zygisk.
++ On Magisk, built-in R0z must be disabled before installing r0zygisk.
 + On KernelSU, make sure both the kernel-side KernelSU version and the Manager version meet the minimum requirements below.
 
 ## Requirements
@@ -73,13 +73,13 @@ If `module/private_key` and `module/public_key` are absent, the module still bui
 ### Magisk
 
 + Minimal version: 26402
-+ Built-in Zygisk turned off
++ Built-in R0z turned off
 
 ## Compatibility
 
 `PROCESS_ON_DENYLIST` cannot be flagged correctly for isolated processes on Magisk DenyList currently.
 
-r0zygisk only guarantees the same behavior of Zygisk API, but will NOT ensure Magisk's internal features.
+r0zygisk only guarantees the same behavior of R0z API, but will NOT ensure Magisk's internal features.
 
 ## FAQ
 
@@ -97,7 +97,7 @@ If `module/private_key` and `module/public_key` are not present, the build still
 
 ### Why does installation fail on Magisk?
 
-Check that your Magisk version is at least `26402` and that built-in Zygisk is turned off before installing r0zygisk.
+Check that your Magisk version is at least `26402` and that built-in R0z is turned off before installing r0zygisk.
 
 ### Why does installation fail on KernelSU?
 
@@ -105,7 +105,7 @@ Check the kernel-side KernelSU version, the KernelSU Manager (`ksud`) version, a
 
 ## Acknowledgements
 
-+ topjohnwu / Magisk, for the original Zygisk design and related references
++ topjohnwu / Magisk, for the original R0z design and related references
 + KernelSU, for root environment integration support
 + LSPosed / LSPlt, for the native PLT hooking dependency used by this project
 

@@ -103,50 +103,84 @@ extract "$ZIPFILE" 'webroot/app.js'     "$MODPATH"
 mv "$TMPDIR/sepolicy.rule" "$MODPATH"
 
 mkdir "$MODPATH/bin"
-mkdir "$MODPATH/lib"
-mkdir "$MODPATH/lib64"
+mkdir -p "$MODPATH/system/lib"
+mkdir -p "$MODPATH/system/lib64"
 mv "$MODPATH/r0z-ctl.sh" "$MODPATH/bin/r0z-ctl"
 
-if [ "$ARCH" = "x86" ] || [ "$ARCH" = "x64" ]; then
-  ui_print "- Extracting x86 libraries"
-  extract "$ZIPFILE" 'bin/x86/r0zd' "$MODPATH/bin" true
-  mv "$MODPATH/bin/r0zd" "$MODPATH/bin/r0zd32"
-  extract "$ZIPFILE" 'lib/x86/libr0z.so' "$MODPATH/lib" true
-  extract "$ZIPFILE" 'lib/x86/libr0z_ptrace.so' "$MODPATH/bin" true
-  mv "$MODPATH/bin/libr0z_ptrace.so" "$MODPATH/bin/r0z-trace32"
+HAS32BIT=false
+if [ -n "$(getprop ro.product.cpu.abilist32)" ] || [ -n "$(getprop ro.system.product.cpu.abilist32)" ]; then
+  HAS32BIT=true
+fi
+
+if [ "$ARCH" = "x64" ]; then
+  if [ "$HAS32BIT" = "true" ]; then
+    ui_print "- Extracting x86 libraries"
+    extract "$ZIPFILE" 'bin/x86/r0zd' "$MODPATH/bin" true
+    mv "$MODPATH/bin/r0zd" "$MODPATH/bin/r0zd32"
+    extract "$ZIPFILE" 'lib/x86/libr0zgk.so' "$MODPATH/system/lib" true
+    extract "$ZIPFILE" 'lib/x86/libzn_loader.so' "$MODPATH/system/lib" true
+    extract "$ZIPFILE" 'lib/x86/libpayload.so' "$MODPATH/system/lib" true
+  fi
 
   ui_print "- Extracting x64 libraries"
   extract "$ZIPFILE" 'bin/x86_64/r0zd' "$MODPATH/bin" true
   mv "$MODPATH/bin/r0zd" "$MODPATH/bin/r0zd64"
-  extract "$ZIPFILE" 'lib/x86_64/libr0z.so' "$MODPATH/lib64" true
-  extract "$ZIPFILE" 'lib/x86_64/libr0z_ptrace.so' "$MODPATH/bin" true
-  mv "$MODPATH/bin/libr0z_ptrace.so" "$MODPATH/bin/r0z-trace64"
+  extract "$ZIPFILE" 'lib/x86_64/libr0zgk.so' "$MODPATH/system/lib64" true
+  extract "$ZIPFILE" 'lib/x86_64/libzn_loader.so' "$MODPATH/system/lib64" true
+  extract "$ZIPFILE" 'lib/x86_64/libpayload.so' "$MODPATH/system/lib64" true
 
   extract "$ZIPFILE" 'machikado.x86' "$MODPATH" true
   mv "$MODPATH/machikado.x86" "$MODPATH/machikado"
-else
-  ui_print "- Extracting arm libraries"
-  extract "$ZIPFILE" 'bin/armeabi-v7a/r0zd' "$MODPATH/bin" true
+  ln -s "./r0zd64" "$MODPATH/bin/r0zd"
+elif [ "$ARCH" = "x86" ]; then
+  ui_print "- Extracting x86 libraries"
+  extract "$ZIPFILE" 'bin/x86/r0zd' "$MODPATH/bin" true
   mv "$MODPATH/bin/r0zd" "$MODPATH/bin/r0zd32"
-  extract "$ZIPFILE" 'lib/armeabi-v7a/libr0z.so' "$MODPATH/lib" true
-  extract "$ZIPFILE" 'lib/armeabi-v7a/libr0z_ptrace.so' "$MODPATH/bin" true
-  mv "$MODPATH/bin/libr0z_ptrace.so" "$MODPATH/bin/r0z-trace32"
+  extract "$ZIPFILE" 'lib/x86/libr0zgk.so' "$MODPATH/system/lib" true
+  extract "$ZIPFILE" 'lib/x86/libzn_loader.so' "$MODPATH/system/lib" true
+  extract "$ZIPFILE" 'lib/x86/libpayload.so' "$MODPATH/system/lib" true
+
+  extract "$ZIPFILE" 'machikado.x86' "$MODPATH" true
+  mv "$MODPATH/machikado.x86" "$MODPATH/machikado"
+  ln -s "./r0zd32" "$MODPATH/bin/r0zd"
+elif [ "$ARCH" = "arm64" ]; then
+  if [ "$HAS32BIT" = "true" ]; then
+    ui_print "- Extracting arm libraries"
+    extract "$ZIPFILE" 'bin/armeabi-v7a/r0zd' "$MODPATH/bin" true
+    mv "$MODPATH/bin/r0zd" "$MODPATH/bin/r0zd32"
+    extract "$ZIPFILE" 'lib/armeabi-v7a/libr0zgk.so' "$MODPATH/system/lib" true
+    extract "$ZIPFILE" 'lib/armeabi-v7a/libzn_loader.so' "$MODPATH/system/lib" true
+    extract "$ZIPFILE" 'lib/armeabi-v7a/libpayload.so' "$MODPATH/system/lib" true
+  fi
 
   ui_print "- Extracting arm64 libraries"
   extract "$ZIPFILE" 'bin/arm64-v8a/r0zd' "$MODPATH/bin" true
   mv "$MODPATH/bin/r0zd" "$MODPATH/bin/r0zd64"
-  extract "$ZIPFILE" 'lib/arm64-v8a/libr0z.so' "$MODPATH/lib64" true
-  extract "$ZIPFILE" 'lib/arm64-v8a/libr0z_ptrace.so' "$MODPATH/bin" true
-  mv "$MODPATH/bin/libr0z_ptrace.so" "$MODPATH/bin/r0z-trace64"
+  extract "$ZIPFILE" 'lib/arm64-v8a/libr0zgk.so' "$MODPATH/system/lib64" true
+  extract "$ZIPFILE" 'lib/arm64-v8a/libzn_loader.so' "$MODPATH/system/lib64" true
+  extract "$ZIPFILE" 'lib/arm64-v8a/libpayload.so' "$MODPATH/system/lib64" true
 
   extract "$ZIPFILE" 'machikado.arm' "$MODPATH" true
   mv "$MODPATH/machikado.arm" "$MODPATH/machikado"
+  ln -s "./r0zd64" "$MODPATH/bin/r0zd"
+else
+  ui_print "- Extracting arm libraries"
+  extract "$ZIPFILE" 'bin/armeabi-v7a/r0zd' "$MODPATH/bin" true
+  mv "$MODPATH/bin/r0zd" "$MODPATH/bin/r0zd32"
+  extract "$ZIPFILE" 'lib/armeabi-v7a/libr0zgk.so' "$MODPATH/system/lib" true
+  extract "$ZIPFILE" 'lib/armeabi-v7a/libzn_loader.so' "$MODPATH/system/lib" true
+  extract "$ZIPFILE" 'lib/armeabi-v7a/libpayload.so' "$MODPATH/system/lib" true
+
+  extract "$ZIPFILE" 'machikado.arm' "$MODPATH" true
+  mv "$MODPATH/machikado.arm" "$MODPATH/machikado"
+  ln -s "./r0zd32" "$MODPATH/bin/r0zd"
 fi
 
 ui_print "- Setting permissions"
 set_perm_recursive "$MODPATH/bin" 0 0 0755 0755
-set_perm_recursive "$MODPATH/lib" 0 0 0755 0644 u:object_r:system_lib_file:s0
-set_perm_recursive "$MODPATH/lib64" 0 0 0755 0644 u:object_r:system_lib_file:s0
+set_perm_recursive "$MODPATH/system" 0 0 0755 0644
+set_perm_recursive "$MODPATH/system/lib" 0 0 0755 0644 u:object_r:system_lib_file:s0
+set_perm_recursive "$MODPATH/system/lib64" 0 0 0755 0644 u:object_r:system_lib_file:s0
 set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644
 
 # If Huawei's Maple is enabled, system_server is created with a special way which is out of r0z's control

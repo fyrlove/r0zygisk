@@ -29,8 +29,8 @@ val gitCommitHash = if (gitDir.exists()) {
 
 val moduleId by extra("r0z")
 val moduleName by extra("r0z")
-val verName by extra("v1.0.0")
-val verCode by extra(1)
+val verName by extra("v1.0.1")
+val verCode by extra(2)
 val commitHash by extra(gitCommitHash)
 val minKsuVersion by extra(10940)
 val minKsudVersion by extra(11425)

@@ -1,7 +1,7 @@
 #!/system/bin/sh
 
 MODDIR=${0%/*}
-if [ "$ZYGISK_ENABLED" ]; then
+if [ "$ZYGISK_ENABLED" = "1" ]; then
   exit 0
 fi
 
@@ -20,32 +20,18 @@ if [ "$(which magisk)" ]; then
   done
 fi
 
-create_sys_perm() {
-  mkdir -p $1
-  chmod 555 $1
-  chcon u:object_r:system_file:s0 $1
-}
-
-export TMP_PATH=/sbin
-[ -d /sbin ] || export TMP_PATH=/debug_ramdisk
-
-create_sys_perm $TMP_PATH
-
-if [ -f $MODDIR/lib64/libr0z.so ];then
-  create_sys_perm $TMP_PATH/lib64
-  cp $MODDIR/lib64/libr0z.so $TMP_PATH/lib64/libr0z.so
-  chcon u:object_r:system_file:s0 $TMP_PATH/lib64/libr0z.so
-fi
-
-if [ -f $MODDIR/lib/libr0z.so ];then
-  create_sys_perm $TMP_PATH/lib
-  cp $MODDIR/lib/libr0z.so $TMP_PATH/lib/libr0z.so
-  chcon u:object_r:system_file:s0 $TMP_PATH/lib/libr0z.so
-fi
-
+export TMP_PATH="$MODDIR"
 [ "$DEBUG" = true ] && export RUST_BACKTRACE=1
-MODE_FILE="$MODDIR/r0z_mode"
-if [ ! -f "$MODE_FILE" ]; then
-  printf '%s\n' compat > "$MODE_FILE"
+
+if command -v resetprop >/dev/null 2>&1; then
+  resetprop ro.dalvik.vm.native.bridge libzn_loader.so
 fi
-./bin/r0z-trace64 monitor &
+
+./bin/r0zd daemon </dev/null >/dev/null 2>&1 &
+
+# Avoid a race where zygote loads native bridge before daemon socket is ready.
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  [ -S "$MODDIR/cp64.sock" ] && break
+  [ -S "$MODDIR/cp32.sock" ] && break
+  sleep 0.2
+done

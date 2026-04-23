@@ -34,7 +34,7 @@ pub enum DaemonSocketAction {
     SystemServerStarted,
 }
 
-// Zygisk process flags
+// R0z process flags
 bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct ProcessFlags: u32 {

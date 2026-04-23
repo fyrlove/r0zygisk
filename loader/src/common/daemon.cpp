@@ -6,7 +6,7 @@
 #include "dl.h"
 #include "socket_utils.h"
 
-namespace zygiskd {
+namespace r0zd {
     static std::string TMP_PATH;
     void Init(const char *path) {
         TMP_PATH = path;
