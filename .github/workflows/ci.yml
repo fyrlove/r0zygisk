@@ -77,10 +77,10 @@ jobs:
         if: success()
         id: prepareArtifact
         run: |
-          releaseName=`ls module/build/outputs/release/r0zygisk-v*-release.zip | awk -F '(/|.zip)' '{print $5}'` && echo "releaseName=$releaseName" >> $GITHUB_OUTPUT
-          debugName=`ls module/build/outputs/release/r0zygisk-v*-debug.zip | awk -F '(/|.zip)' '{print $5}'` && echo "debugName=$debugName" >> $GITHUB_OUTPUT
-          unzip module/build/outputs/release/r0zygisk-v*-release.zip -d r0zygisk-release
-          unzip module/build/outputs/release/r0zygisk-v*-debug.zip -d r0zygisk-debug
+          releaseName=`ls module/build/outputs/release/r0z-v*-release.zip | awk -F '(/|.zip)' '{print $5}'` && echo "releaseName=$releaseName" >> $GITHUB_OUTPUT
+          debugName=`ls module/build/outputs/release/r0z-v*-debug.zip | awk -F '(/|.zip)' '{print $5}'` && echo "debugName=$debugName" >> $GITHUB_OUTPUT
+          unzip module/build/outputs/release/r0z-v*-release.zip -d r0z-release
+          unzip module/build/outputs/release/r0z-v*-debug.zip -d r0z-debug
           releaseSymbolName="SYMBOLS-$releaseName.zip"
           debugSymbolName="SYMBOLS-$debugName.zip"
           echo "releaseSymbolName=$releaseSymbolName" >> $GITHUB_OUTPUT
@@ -92,13 +92,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.prepareArtifact.outputs.releaseName }}
-          path: "./r0zygisk-release/*"
+          path: "./r0z-release/*"
 
       - name: Upload debug
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.prepareArtifact.outputs.debugName }}
-          path: "./r0zygisk-debug/*"
+          path: "./r0z-debug/*"
 
       - name: Upload release symbols
         uses: actions/upload-artifact@v4
@@ -117,8 +117,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: r0zygisk ${{ github.ref_name }}
+          name: r0z ${{ github.ref_name }}
           body: |
-            r0zygisk 第一版
+            r0z 自动发布版本
           files: |
-            module/build/outputs/release/r0zygisk-v*-release.zip
+            module/build/outputs/release/r0z-v*-release.zip
