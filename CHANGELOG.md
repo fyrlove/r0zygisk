@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.0.2
+
+### Changed
+
++ Bumped module version to `v1.0.2` and `versionCode` to `3`
++ Fixed GitHub Actions release artifact patterns from `r0zygisk-v*` to `r0z-v*`
++ Updated CI release artifact extraction/output directories to match `r0z` naming
+
+### Notes
+
++ This release primarily ensures tag-triggered GitHub Releases can publish built artifacts correctly
++ Release package naming follows `r0z-v1.0.2-3-<buildType>.zip`
+
 ## v1.0.1
 
 ### Added
