@@ -21,6 +21,15 @@ const els = {
   rootDetail: document.getElementById("rootDetail"),
   moduleCount: document.getElementById("moduleCount"),
   moduleList: document.getElementById("moduleList"),
+  hideCount: document.getElementById("hideCount"),
+  hideSearch: document.getElementById("hideSearch"),
+  hideList: document.getElementById("hideList"),
+};
+
+const hideState = {
+  apps: [],
+  hidden: new Set(),
+  busyPackage: "",
 };
 
 function getBridge() {
@@ -93,7 +102,7 @@ function execCompat(bridge, command) {
     };
     timer = setTimeout(() => {
       fail(new Error("exec 超时，管理器没有返回命令结果"));
-    }, 8000);
+    }, 15000);
 
     const handleReturn = (result) => {
       if (result && typeof result.then === "function") {
@@ -210,6 +219,23 @@ function parseModules(listText) {
     });
 }
 
+function parseSimpleLines(text) {
+  return text.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function shellQuote(text) {
+  return `'${String(text).replaceAll("'", `'\\''`)}'`;
+}
+
 function setDot(dot, ok) {
   dot.classList.toggle("ok", ok === true);
   dot.classList.toggle("bad", ok === false);
@@ -217,6 +243,9 @@ function setDot(dot, ok) {
 
 function setBusy(isBusy) {
   els.refresh.disabled = isBusy;
+  if (els.hideSearch) {
+    els.hideSearch.disabled = isBusy;
+  }
 }
 
 function renderModules(modules) {
@@ -237,6 +266,67 @@ function renderModules(modules) {
       <span class="pill">${mod.disabled ? "已禁用" : "启用中"}</span>
     </article>
   `).join("");
+}
+
+function filteredHideApps() {
+  const keyword = (els.hideSearch?.value || "").trim().toLowerCase();
+  if (!keyword) {
+    return hideState.apps;
+  }
+  return hideState.apps.filter((pkg) => pkg.toLowerCase().includes(keyword));
+}
+
+function renderHideList() {
+  const apps = filteredHideApps();
+  els.hideCount.textContent = `${hideState.hidden.size} 条`;
+  if (!apps.length) {
+    els.hideList.className = "list empty";
+    els.hideList.textContent = hideState.apps.length
+      ? "没有匹配当前搜索条件的应用。"
+      : "没有读取到第三方应用列表，或当前管理器未授予执行权限。";
+    return;
+  }
+
+  els.hideList.className = "list";
+  els.hideList.innerHTML = apps.map((pkg) => {
+    const hidden = hideState.hidden.has(pkg);
+    const busy = hideState.busyPackage === pkg;
+    return `
+      <article class="app-item">
+        <div>
+          <strong>${escapeHtml(pkg)}</strong>
+          <span>${hidden ? "已加入隐藏列表，下次启动该应用时跳过模块注入。" : "未隐藏，应用会按当前策略正常进入 r0z 注入链路。"}</span>
+        </div>
+        <button class="button small ${hidden ? "toggle-on" : "toggle-off"}" type="button" data-hide-package="${escapeHtml(pkg)}" ${busy ? "disabled" : ""}>
+          ${busy ? "处理中..." : hidden ? "取消隐藏" : "加入隐藏"}
+        </button>
+      </article>
+    `;
+  }).join("");
+}
+
+async function toggleHidePackage(pkg, hide) {
+  hideState.busyPackage = pkg;
+  renderHideList();
+  const command = [
+    locateModuleShell,
+    `if [ -x "$MODDIR/bin/r0z-ctl" ]; then "$MODDIR/bin/r0z-ctl" hide-list ${hide ? "add" : "remove"} ${shellQuote(pkg)}; else echo "找不到 $MODDIR/bin/r0z-ctl"; exit 127; fi`,
+  ].join("; ");
+  try {
+    await run(command);
+    if (hide) {
+      hideState.hidden.add(pkg);
+      els.message.textContent = `${pkg} 已加入隐藏列表。重启目标应用后生效。`;
+    } else {
+      hideState.hidden.delete(pkg);
+      els.message.textContent = `${pkg} 已从隐藏列表移除。重启目标应用后生效。`;
+    }
+  } catch (error) {
+    els.message.textContent = `更新隐藏列表失败：${error.message || error}`;
+  } finally {
+    hideState.busyPackage = "";
+    renderHideList();
+  }
 }
 
 function renderDashboard(prop, statusText, processes, modules) {
@@ -284,6 +374,10 @@ async function refreshStatus() {
     `cat "$MODDIR/status.json" 2>/dev/null || true`,
     `echo '--- processes ---'`,
     `ps -A 2>/dev/null | grep -E 'r0zd|app_process|zygote' | grep -v grep || true`,
+    `echo '--- hide.apps ---'`,
+    `if [ -x "$MODDIR/bin/r0z-ctl" ]; then "$MODDIR/bin/r0z-ctl" hide-list apps; fi`,
+    `echo '--- hide.hidden ---'`,
+    `if [ -x "$MODDIR/bin/r0z-ctl" ]; then "$MODDIR/bin/r0z-ctl" hide-list list; fi`,
     `echo '--- modules ---'`,
     "for d in /data/adb/modules/*; do if [ -d \"$d/zygisk\" ]; then id=$(basename \"$d\"); name=$(sed -n 's/^name=//p' \"$d/module.prop\" 2>/dev/null | head -n 1); ver=$(sed -n 's/^version=//p' \"$d/module.prop\" 2>/dev/null | head -n 1); state=enabled; [ -f \"$d/disable\" ] && state=disabled; [ -n \"$name\" ] || name=\"$id\"; echo \"$id|$name|$ver|$state\"; fi; done",
   ].join("; ");
@@ -297,14 +391,19 @@ async function refreshStatus() {
     const propText = (output.match(/--- module\.prop ---\n([\s\S]*?)\n--- bridge\.prop ---/) || [])[1] || "";
     const bridgeProp = (output.match(/--- bridge\.prop ---\n([\s\S]*?)\n--- status\.json ---/) || [])[1] || "";
     const statusText = (output.match(/--- status\.json ---\n([\s\S]*?)\n--- processes ---/) || [])[1] || "";
-    const processes = (output.match(/--- processes ---\n([\s\S]*?)\n--- modules ---/) || [])[1] || "";
+    const processes = (output.match(/--- processes ---\n([\s\S]*?)\n--- hide\.apps ---/) || [])[1] || "";
+    const hideAppsText = (output.match(/--- hide\.apps ---\n([\s\S]*?)\n--- hide\.hidden ---/) || [])[1] || "";
+    const hideHiddenText = (output.match(/--- hide\.hidden ---\n([\s\S]*?)\n--- modules ---/) || [])[1] || "";
     const modulesText = (output.match(/--- modules ---\n([\s\S]*)/) || [])[1] || "";
     const prop = parseKeyValue(propText);
     prop["native.bridge"] = bridgeProp.trim();
     const modules = parseModules(modulesText);
+    hideState.apps = parseSimpleLines(hideAppsText);
+    hideState.hidden = new Set(parseSimpleLines(hideHiddenText));
 
     els.statusText.textContent = output.trim() || "没有读取到状态输出";
     renderDashboard(prop, statusText, processes, modules);
+    renderHideList();
     els.message.textContent = "状态已刷新。";
   } catch (error) {
     els.statusText.textContent = [
@@ -320,7 +419,10 @@ async function refreshStatus() {
     els.daemonState.textContent = "--";
     els.zygoteState.textContent = "--";
     els.rootState.textContent = "--";
+    hideState.apps = [];
+    hideState.hidden = new Set();
     renderModules([]);
+    renderHideList();
     els.message.textContent = "页面已加载，但管理器没有提供可用的执行接口。";
   } finally {
     setBusy(false);
@@ -338,5 +440,17 @@ async function copyLog() {
 
 els.refresh.addEventListener("click", refreshStatus);
 els.copyLog.addEventListener("click", copyLog);
+els.hideSearch.addEventListener("input", renderHideList);
+els.hideList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-hide-package]");
+  if (!button) {
+    return;
+  }
+  const pkg = button.dataset.hidePackage;
+  if (!pkg || hideState.busyPackage) {
+    return;
+  }
+  toggleHidePackage(pkg, !hideState.hidden.has(pkg));
+});
 
 refreshStatus();

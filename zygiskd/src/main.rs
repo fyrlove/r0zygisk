@@ -1,6 +1,7 @@
 mod companion;
 mod constants;
 mod dl;
+mod hide_list;
 mod root_impl;
 mod utils;
 mod r0zd;

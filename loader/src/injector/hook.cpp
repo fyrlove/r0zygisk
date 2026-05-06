@@ -1,14 +1,21 @@
 #include <android/dlext.h>
+#include <linux/memfd.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <dirent.h>
+#include <stdio.h>
 #include <dlfcn.h>
 #include <regex.h>
 #include <bitset>
 #include <list>
 #include <map>
 #include <array>
+#include <cstdarg>
 
 #include <lsplt.hpp>
 
+#include <limits.h>
 #include <fcntl.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
@@ -120,6 +127,7 @@ struct ZygiskContext {
 vector<tuple<dev_t, ino_t, const char *, void **>> *plt_hook_list;
 map<string, vector<JNINativeMethod>, StringCmp> *jni_hook_list;
 bool should_unmap_zygisk = false;
+bool g_hide_runtime = false;
 
 } // namespace
 
@@ -143,6 +151,7 @@ DCL_HOOK_FUNC(int, unshare, int flags) {
         // Simply avoid doing any unmounts for SysUI to avoid potential issues.
         (g_ctx->info_flags & PROCESS_IS_SYS_UI) == 0) {
         if (g_ctx->flags[DO_REVERT_UNMOUNT]) {
+            revert_unmount_r0z();
             if (g_ctx->info_flags & PROCESS_ROOT_IS_KSU) {
                 revert_unmount_ksu();
             } else if (g_ctx->info_flags & PROCESS_ROOT_IS_MAGISK) {
@@ -168,6 +177,379 @@ DCL_HOOK_FUNC(void, android_log_close) {
         logging::setfd(-1);
     }
     old_android_log_close();
+}
+
+static bool should_hide_path(const char *path) {
+    if (!g_hide_runtime || path == nullptr) {
+        return false;
+    }
+    string_view p(path);
+    if (p.starts_with("/data/adb/magisk")) return true;
+    if (p.starts_with("/cache/.magisk")) return true;
+    if (p.starts_with("/debug_ramdisk")) return true;
+    if (p.starts_with("/sbin/.magisk")) return true;
+    if (p.starts_with("/dev/.magisk.unblock")) return true;
+    if (p.starts_with("/data/adb/modules/r0z")) return true;
+    if (p.starts_with("/data/adb/modules_update/r0z")) return true;
+    if (p.starts_with("/data/adb/ksu/modules/r0z")) return true;
+    if (p.starts_with("/data/adb/ap/modules/r0z")) return true;
+    if (p.ends_with("/cp32.sock")) return true;
+    if (p.ends_with("/cp64.sock")) return true;
+    if (p.ends_with("/status.json")) return true;
+    if (p == "/init.magisk.rc") return true;
+    if (p == "/sbin/su") return true;
+    if (p == "/system/bin/su") return true;
+    if (p == "/system/xbin/su") return true;
+    if (p == "/system/bin/magisk") return true;
+    if (p == "/system/bin/magiskpolicy") return true;
+    if (p == "/system/bin/resetprop") return true;
+    if (p == "/system/lib/libr0zgk.so") return true;
+    if (p == "/system/lib64/libr0zgk.so") return true;
+    if (p == "/system/lib/libzn_loader.so") return true;
+    if (p == "/system/lib64/libzn_loader.so") return true;
+    if (p == "/system/lib/libpayload.so") return true;
+    if (p == "/system/lib64/libpayload.so") return true;
+    return false;
+}
+
+static bool should_sanitize_proc_path(const char *path) {
+    if (!g_hide_runtime || path == nullptr) {
+        return false;
+    }
+    string_view p(path);
+    return p == "/proc/self/maps" ||
+           p == "/proc/self/smaps" ||
+           p == "/proc/self/mounts" ||
+           p == "/proc/self/mountinfo" ||
+           p == "/proc/net/unix";
+}
+
+static bool contains_hidden_token(string_view value) {
+    static constexpr std::array<string_view, 12> TOKENS{
+            "magisk",
+            "zygisk",
+            "libzn_loader",
+            "libr0zgk",
+            "libpayload",
+            "native.bridge",
+            "/data/adb",
+            "/sbin/.magisk",
+            "/debug_ramdisk",
+            "resetprop",
+            "magiskpolicy",
+            " ro.dalvik.vm.native.bridge",
+    };
+    for (auto token : TOKENS) {
+        if (value.find(token) != string_view::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool should_hide_command(const char *command) {
+    if (!g_hide_runtime || command == nullptr) {
+        return false;
+    }
+    return contains_hidden_token(command);
+}
+
+static string sanitize_proc_content(const char *path, string_view content) {
+    string output;
+    output.reserve(content.size());
+
+    size_t start = 0;
+    while (start <= content.size()) {
+        size_t end = content.find('\n', start);
+        if (end == string_view::npos) {
+            end = content.size();
+        }
+        string_view line = content.substr(start, end - start);
+        if (!contains_hidden_token(line) &&
+            line.find("cp32.sock") == string_view::npos &&
+            line.find("cp64.sock") == string_view::npos &&
+            line.find("status.json") == string_view::npos) {
+            output.append(line.data(), line.size());
+            if (end < content.size()) {
+                output.push_back('\n');
+            }
+        }
+        if (end == content.size()) {
+            break;
+        }
+        start = end + 1;
+    }
+
+    if (strcmp(path, "/proc/self/maps") == 0 || strcmp(path, "/proc/self/smaps") == 0) {
+        return output;
+    }
+    if (strcmp(path, "/proc/self/mounts") == 0 || strcmp(path, "/proc/self/mountinfo") == 0) {
+        return output;
+    }
+    if (strcmp(path, "/proc/net/unix") == 0) {
+        return output;
+    }
+    return string(content);
+}
+
+static int create_memfd_from_string(const char *name, const string &content) {
+    int fd = static_cast<int>(syscall(__NR_memfd_create, name, MFD_CLOEXEC));
+    if (fd < 0) {
+        return -1;
+    }
+    const char *data = content.data();
+    size_t left = content.size();
+    while (left > 0) {
+        ssize_t written = syscall(__NR_write, fd, data, left);
+        if (written <= 0) {
+            close(fd);
+            return -1;
+        }
+        data += written;
+        left -= static_cast<size_t>(written);
+    }
+    if (lseek(fd, 0, SEEK_SET) < 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+static int open_sanitized_proc_fd(const char *path) {
+    if (!should_sanitize_proc_path(path)) {
+        return -1;
+    }
+    int source_fd = static_cast<int>(syscall(__NR_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC, 0));
+    if (source_fd < 0) {
+        return -1;
+    }
+    string raw;
+    char buf[4096];
+    while (true) {
+        ssize_t n = syscall(__NR_read, source_fd, buf, sizeof(buf));
+        if (n < 0) {
+            close(source_fd);
+            return -1;
+        }
+        if (n == 0) {
+            break;
+        }
+        raw.append(buf, static_cast<size_t>(n));
+    }
+    close(source_fd);
+    string sanitized = sanitize_proc_content(path, raw);
+    return create_memfd_from_string("r0z-hide", sanitized);
+}
+
+static string resolve_dir_path(DIR *dirp) {
+    if (dirp == nullptr) {
+        return {};
+    }
+    int fd = dirfd(dirp);
+    if (fd < 0) {
+        return {};
+    }
+    char proc_path[64];
+    snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
+    char target[PATH_MAX];
+    ssize_t len = syscall(__NR_readlinkat, AT_FDCWD, proc_path, target, sizeof(target) - 1);
+    if (len <= 0) {
+        return {};
+    }
+    target[len] = '\0';
+    return target;
+}
+
+static bool should_hide_dir_entry(const string &dir_path, const char *name) {
+    if (!g_hide_runtime || name == nullptr) {
+        return false;
+    }
+    string_view entry(name);
+    if ((dir_path == "/data/adb/modules" ||
+         dir_path == "/data/adb/modules_update" ||
+         dir_path == "/data/adb/ksu/modules" ||
+         dir_path == "/data/adb/ap/modules") &&
+        entry == MODULE_ID) {
+        return true;
+    }
+    if (dir_path == "/data/adb" &&
+        (entry == "magisk" || entry == "modules" || entry == "modules_update" || entry == "ksu" || entry == "ap")) {
+        return true;
+    }
+    if ((dir_path == (string("/data/adb/modules/") + MODULE_ID) ||
+         dir_path == (string("/data/adb/modules_update/") + MODULE_ID) ||
+         dir_path == (string("/data/adb/ksu/modules/") + MODULE_ID) ||
+         dir_path == (string("/data/adb/ap/modules/") + MODULE_ID)) &&
+        (entry == "cp32.sock" || entry == "cp64.sock" || entry == "status.json")) {
+        return true;
+    }
+    if ((dir_path == "/system/lib" || dir_path == "/system/lib64") &&
+        (entry == "libr0zgk.so" || entry == "libzn_loader.so" || entry == "libpayload.so")) {
+        return true;
+    }
+    return false;
+}
+
+DCL_HOOK_FUNC(int, access, const char *path, int mode) {
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return old_access(path, mode);
+}
+
+DCL_HOOK_FUNC(int, faccessat, int dirfd, const char *path, int mode, int flags) {
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return old_faccessat(dirfd, path, mode, flags);
+}
+
+DCL_HOOK_FUNC(int, stat, const char *path, struct stat *buf) {
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return old_stat(path, buf);
+}
+
+DCL_HOOK_FUNC(int, lstat, const char *path, struct stat *buf) {
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return old_lstat(path, buf);
+}
+
+DCL_HOOK_FUNC(ssize_t, readlink, const char *path, char *buf, size_t bufsiz) {
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return old_readlink(path, buf, bufsiz);
+}
+
+DCL_HOOK_FUNC(ssize_t, readlinkat, int dirfd, const char *path, char *buf, size_t bufsiz) {
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return old_readlinkat(dirfd, path, buf, bufsiz);
+}
+
+DCL_HOOK_FUNC(dirent *, readdir, DIR *dirp) {
+    while (auto *entry = old_readdir(dirp)) {
+        if (!should_hide_dir_entry(resolve_dir_path(dirp), entry->d_name)) {
+            return entry;
+        }
+    }
+    return nullptr;
+}
+
+DCL_HOOK_FUNC(dirent64 *, readdir64, DIR *dirp) {
+    while (auto *entry = old_readdir64(dirp)) {
+        if (!should_hide_dir_entry(resolve_dir_path(dirp), entry->d_name)) {
+            return entry;
+        }
+    }
+    return nullptr;
+}
+
+DCL_HOOK_FUNC(int, open, const char *path, int flags, ...) {
+    if (int sanitized_fd = open_sanitized_proc_fd(path); sanitized_fd >= 0) {
+        return sanitized_fd;
+    }
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode_t mode = static_cast<mode_t>(va_arg(args, int));
+        va_end(args);
+        return old_open(path, flags, mode);
+    }
+    return old_open(path, flags);
+}
+
+DCL_HOOK_FUNC(int, openat, int dirfd, const char *path, int flags, ...) {
+    if (dirfd == AT_FDCWD) {
+        if (int sanitized_fd = open_sanitized_proc_fd(path); sanitized_fd >= 0) {
+            return sanitized_fd;
+        }
+    }
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode_t mode = static_cast<mode_t>(va_arg(args, int));
+        va_end(args);
+        return old_openat(dirfd, path, flags, mode);
+    }
+    return old_openat(dirfd, path, flags);
+}
+
+DCL_HOOK_FUNC(FILE *, fopen, const char *path, const char *mode) {
+    if (int sanitized_fd = open_sanitized_proc_fd(path); sanitized_fd >= 0) {
+        return fdopen(sanitized_fd, mode);
+    }
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return nullptr;
+    }
+    return old_fopen(path, mode);
+}
+
+DCL_HOOK_FUNC(FILE *, fopen64, const char *path, const char *mode) {
+    if (int sanitized_fd = open_sanitized_proc_fd(path); sanitized_fd >= 0) {
+        return fdopen(sanitized_fd, mode);
+    }
+    if (should_hide_path(path)) {
+        errno = ENOENT;
+        return nullptr;
+    }
+    return old_fopen64(path, mode);
+}
+
+DCL_HOOK_FUNC(DIR *, opendir, const char *name) {
+    if (should_hide_path(name)) {
+        errno = ENOENT;
+        return nullptr;
+    }
+    return old_opendir(name);
+}
+
+DCL_HOOK_FUNC(int, system, const char *command) {
+    if (should_hide_command(command)) {
+        errno = ENOENT;
+        return 127;
+    }
+    return old_system(command);
+}
+
+DCL_HOOK_FUNC(FILE *, popen, const char *command, const char *type) {
+    if (should_hide_command(command)) {
+        errno = ENOENT;
+        return nullptr;
+    }
+    return old_popen(command, type);
+}
+
+DCL_HOOK_FUNC(int, __system_property_get, const char *name, char *value) {
+    if (g_hide_runtime && name &&
+        (strcmp(name, "ro.dalvik.vm.native.bridge") == 0 || strstr(name, "magisk") != nullptr ||
+         strstr(name, "zygisk") != nullptr)) {
+        if (value) {
+            value[0] = '\0';
+        }
+        return 0;
+    }
+    return old___system_property_get(name, value);
 }
 
 // We cannot directly call `dlclose` to unload ourselves, otherwise when `dlclose` returns,
@@ -586,6 +968,10 @@ void ZygiskContext::app_specialize_pre() {
     if ((info_flags & (PROCESS_IS_MANAGER | PROCESS_ROOT_IS_MAGISK)) == (PROCESS_IS_MANAGER | PROCESS_ROOT_IS_MAGISK)) {
         LOGI("current uid %d is manager!", g_ctx->args.app->uid);
         setenv("ZYGISK_ENABLED", "1", 1);
+    } else if (info_flags & PROCESS_ON_DENYLIST) {
+        LOGI("current uid %d matched hide list, skip module injection and revert mounts", g_ctx->args.app->uid);
+        flags[DO_REVERT_UNMOUNT] = true;
+        g_hide_runtime = true;
     } else {
         run_modules_pre();
     }
@@ -701,6 +1087,11 @@ ZygiskContext::~ZygiskContext() {
         m.clearApi();
     }
 
+    if (g_hide_runtime) {
+        should_unmap_zygisk = false;
+        return;
+    }
+
     hook_unloader();
 }
 
@@ -735,11 +1126,15 @@ void hook_functions() {
 
     ino_t android_runtime_inode = 0;
     dev_t android_runtime_dev = 0;
+    ino_t libc_inode = 0;
+    dev_t libc_dev = 0;
     for (auto &map : lsplt::MapInfo::Scan()) {
         if (map.path.ends_with("libandroid_runtime.so")) {
             android_runtime_inode = map.inode;
             android_runtime_dev = map.dev;
-            break;
+        } else if (map.path.ends_with("/libc.so")) {
+            libc_inode = map.inode;
+            libc_dev = map.dev;
         }
     }
 
@@ -747,6 +1142,22 @@ void hook_functions() {
     PLT_HOOK_REGISTER(android_runtime_dev, android_runtime_inode, unshare);
     PLT_HOOK_REGISTER(android_runtime_dev, android_runtime_inode, strdup);
     PLT_HOOK_REGISTER_SYM(android_runtime_dev, android_runtime_inode, "__android_log_close", android_log_close);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, access);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, faccessat);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, stat);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, lstat);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, readlink);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, readlinkat);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, readdir);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, readdir64);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, open);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, openat);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, fopen);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, fopen64);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, opendir);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, system);
+    PLT_HOOK_REGISTER(libc_dev, libc_inode, popen);
+    PLT_HOOK_REGISTER_SYM(libc_dev, libc_inode, "__system_property_get", __system_property_get);
     hook_commit();
 
     // Remove unhooked methods

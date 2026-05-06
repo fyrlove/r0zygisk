@@ -1,4 +1,5 @@
 use crate::constants::{DaemonSocketAction, ProcessFlags};
+use crate::hide_list;
 use crate::utils::{check_unix_socket, LateInit, UnixStreamExt};
 use crate::{constants, lp_select, root_impl, utils};
 use anyhow::{bail, Result};
@@ -38,6 +39,7 @@ pub fn main() -> Result<()> {
     info!("Welcome to r0z ({}) !", constants::ZKSU_VERSION);
 
     TMP_PATH.init(std::env::var("TMP_PATH")?);
+    hide_list::init(TMP_PATH.deref());
     PATH_CP_NAME.init(format!(
         "{}/{}",
         TMP_PATH.deref(),
@@ -255,10 +257,11 @@ fn handle_daemon_action(
             if root_impl::uid_is_manager(uid) {
                 flags |= ProcessFlags::PROCESS_IS_MANAGER;
             } else {
-                if root_impl::uid_granted_root(uid) {
+                let hidden = hide_list::uid_should_hide(uid);
+                if root_impl::uid_granted_root(uid) && !hidden {
                     flags |= ProcessFlags::PROCESS_GRANTED_ROOT;
                 }
-                if root_impl::uid_should_umount(uid) {
+                if root_impl::uid_should_umount(uid) || hidden {
                     flags |= ProcessFlags::PROCESS_ON_DENYLIST;
                 }
             }

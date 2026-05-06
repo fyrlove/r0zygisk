@@ -1,8 +1,15 @@
-# r0zygisk
+# r0z
 
 [中文说明](./README.zh-CN.md)
 
-Standalone implementation of R0z, providing R0z API support for KernelSU and a replacement of Magisk's built-in R0z.
+Standalone implementation of zygisy, providing zygisy API support for KernelSU and a replacement for Magisk's built-in zygisy.
+
+## Current Runtime
+
++ Uses a native bridge loader (`libzn_loader.so`) to trigger early zygote loading
++ Uses `r0zd` as the companion daemon
++ Uses `libr0zgk.so` as the injected payload library
++ Ships a WebUI and `r0z-ctl` helper for status inspection and hide-list management
 
 ## Layout
 
@@ -36,6 +43,12 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 
 Release artifacts will be generated under `module/build/outputs/release/`.
 
+Current release zip naming:
+
+```text
+r0z-v1.0.2-3-release.zip
+```
+
 If `module/private_key` and `module/public_key` are absent, the module still builds but will not be signed.
 
 ### Notes
@@ -55,7 +68,9 @@ If `module/private_key` and `module/public_key` are absent, the module still bui
 ### Important
 
 + Recovery installation is not supported.
-+ On Magisk, built-in R0z must be disabled before installing r0zygisk.
++ Android 8.0+ only (`minSdk 26`).
++ Supported ABIs: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`.
++ On Magisk, built-in r0z must be disabled before installing r0z.
 + On KernelSU, make sure both the kernel-side KernelSU version and the Manager version meet the minimum requirements below.
 
 ## Requirements
@@ -67,19 +82,27 @@ If `module/private_key` and `module/public_key` are absent, the module still bui
 ### KernelSU
 
 + Minimal KernelSU version: 10940
-+ Minimal KernelSU Manager (ksud) version: 11424
++ Minimal KernelSU Manager (`ksud`) version: `11425`
 + Kernel has full SELinux patch support
 
 ### Magisk
 
 + Minimal version: 26402
-+ Built-in R0z turned off
++ Built-in zygisk turned off
 
 ## Compatibility
 
 `PROCESS_ON_DENYLIST` cannot be flagged correctly for isolated processes on Magisk DenyList currently.
 
-r0zygisk only guarantees the same behavior of R0z API, but will NOT ensure Magisk's internal features.
+r0z only guarantees zygisy API compatibility. It does not guarantee Magisk internal private behaviors.
+
+## Features
+
++ Native bridge based loader path with `libzn_loader.so`
++ Rust daemon `r0zd`
++ Injected payload library `libr0zgk.so`
++ WebUI for runtime status, module discovery and diagnostics
++ Hide-list management through WebUI or `bin/r0z-ctl hide-list ...`
 
 ## FAQ
 
@@ -91,13 +114,9 @@ Your Gradle runtime is using the wrong JDK. Set `JAVA_HOME` to JDK 17 and retry.
 
 Recovery installation is intentionally blocked. Install the module from the KernelSU app or the Magisk app instead.
 
-### Why is the generated package unsigned?
-
-If `module/private_key` and `module/public_key` are not present, the build still succeeds, but the output package is unsigned by design.
-
 ### Why does installation fail on Magisk?
 
-Check that your Magisk version is at least `26402` and that built-in R0z is turned off before installing r0zygisk.
+Check that your Magisk version is at least `26402` and that built-in zygisk is turned off before installing r0z.
 
 ### Why does installation fail on KernelSU?
 
@@ -105,9 +124,10 @@ Check the kernel-side KernelSU version, the KernelSU Manager (`ksud`) version, a
 
 ## Acknowledgements
 
-+ topjohnwu / Magisk, for the original R0z design and related references
++ topjohnwu / Magisk, for the original r0z design and related references
 + KernelSU, for root environment integration support
 + LSPosed / LSPlt, for the native PLT hooking dependency used by this project
++ Dr-TSNG / ZygiskNext, for the directory layout reference and the first-version implementation reference
 
 ## Third-Party Dependencies
 

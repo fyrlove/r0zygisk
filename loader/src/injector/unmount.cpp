@@ -10,8 +10,17 @@ using namespace std::string_view_literals;
 
 namespace {
     constexpr auto MODULE_DIR = "/data/adb/modules";
+    constexpr auto SELF_MODULE_DIR = "/data/adb/modules/" MODULE_ID;
     constexpr auto KSU_OVERLAY_SOURCE = "KSU";
     const std::vector<std::string> KSU_PARTITIONS{"/system", "/vendor", "/product", "/system_ext", "/odm", "/oem"};
+    const std::vector<std::string> R0Z_SYSTEM_TARGETS{
+            "/system/lib/libr0zgk.so",
+            "/system/lib/libzn_loader.so",
+            "/system/lib/libpayload.so",
+            "/system/lib64/libr0zgk.so",
+            "/system/lib64/libzn_loader.so",
+            "/system/lib64/libpayload.so",
+    };
 
     void lazy_unmount(const char* mountpoint) {
         if (umount2(mountpoint, MNT_DETACH) != -1) {
@@ -21,6 +30,28 @@ namespace {
             PLOGE("Unmount (%s)", mountpoint);
 #endif
         }
+    }
+}
+
+void revert_unmount_r0z() {
+    std::vector<std::string> targets;
+
+    for (auto &info : parse_mount_info("self")) {
+        if (info.target.starts_with(SELF_MODULE_DIR) || info.target == SELF_MODULE_DIR) {
+            targets.emplace_back(info.target);
+            continue;
+        }
+        if (std::find(R0Z_SYSTEM_TARGETS.begin(), R0Z_SYSTEM_TARGETS.end(), info.target) != R0Z_SYSTEM_TARGETS.end()) {
+            targets.emplace_back(info.target);
+            continue;
+        }
+        if (info.root.starts_with(SELF_MODULE_DIR) || info.source.starts_with(SELF_MODULE_DIR)) {
+            targets.emplace_back(info.target);
+        }
+    }
+
+    for (auto &s : reversed(targets)) {
+        lazy_unmount(s.data());
     }
 }
 

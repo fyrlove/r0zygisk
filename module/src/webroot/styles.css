@@ -264,6 +264,16 @@ small {
   font-size: 13px;
 }
 
+.button.toggle-on {
+  background: var(--primary);
+}
+
+.button.toggle-off {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
 .panel {
   margin-top: 14px;
   padding: 18px;
@@ -325,6 +335,42 @@ small {
   font-size: 13px;
 }
 
+.hide-toolbar {
+  margin-bottom: 14px;
+}
+
+.search-input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 14px;
+  font: inherit;
+}
+
+.app-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 13px;
+}
+
+.app-item strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.app-item span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .explain {
   display: grid;
   gap: 10px;
@@ -382,7 +428,8 @@ pre {
   .topbar,
   .section-title,
   .hero-panel,
-  .module-item {
+  .module-item,
+  .app-item {
     align-items: stretch;
     flex-direction: column;
     grid-template-columns: 1fr;

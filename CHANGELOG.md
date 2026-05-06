@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 + Bumped module version to `v1.0.2` and `versionCode` to `3`
-+ Fixed GitHub Actions release artifact patterns from `r0zygisk-v*` to `r0z-v*`
++ Renamed GitHub Actions release artifact patterns from `r0zygisk-v*` to `r0z-v*`
 + Updated CI release artifact extraction/output directories to match `r0z` naming
 
 ### Notes
@@ -31,7 +31,7 @@ All notable changes to this project will be documented in this file.
 
 ### Notes
 
-+ r0zygisk 第二版
++ Second public revision of `r0z`
 + Release package naming now follows `r0z-v1.0.1-2-<buildType>.zip`
 + Existing unsigned build behavior remains unchanged when `module/private_key` and `module/public_key` are absent
 
@@ -39,7 +39,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-+ Initial public open source release of `r0zygisk`
++ Initial public open source release of `r0z`
 + English and Simplified Chinese README documents
 + Build instructions, installation guide, FAQ, acknowledgements and third-party dependency notes
 + Vendored `lsplt` source in the repository for direct builds without submodules
@@ -52,10 +52,10 @@ All notable changes to this project will be documented in this file.
 + Remove local build artifacts, machine-specific files and embedded git metadata from vendored source
 + Make the project buildable in a clean environment with JDK 17, Android SDK/NDK and Rust nightly
 + Align CI with the current repository layout and `main` branch
-+ Keep release/debug package naming consistent with `r0zygisk`
++ Keep release/debug package naming consistent with `r0z`
 
 ### Notes
 
-+ r0zygisk 第一版
++ First public revision of `r0z`
 + Release packages can be built with `./gradlew zipRelease`
 + If `module/private_key` and `module/public_key` are absent, generated packages are unsigned by design

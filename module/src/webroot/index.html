@@ -87,6 +87,21 @@
     <section class="panel">
       <div class="section-title">
         <div>
+          <p class="label">Hide List</p>
+          <h2>应用隐藏列表</h2>
+          <p class="muted">命中列表的 App 会跳过 `r0z` 模块注入，并在进程私有挂载命名空间中执行模块痕迹回避。</p>
+        </div>
+        <span id="hideCount" class="pill">--</span>
+      </div>
+      <div class="hide-toolbar">
+        <input id="hideSearch" class="search-input" type="search" placeholder="搜索包名，例如 com.bank.app">
+      </div>
+      <div id="hideList" class="list empty">正在读取已安装应用...</div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <div>
           <p class="label">原始输出</p>
           <h2>诊断信息</h2>
         </div>
