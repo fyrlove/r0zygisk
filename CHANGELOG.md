@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.0.3
+
+### Added
+
++ Added APatch root implementation detection and status reporting in `r0zd`
++ Added APatch-specific root policy parsing from `/data/adb/ap/package_config`
++ Added APatch process flag propagation to the injector/runtime path
++ Added APatch manager handling in app specialize flow
++ Added APatch install-branch handling in the module installer
++ Added `适配apatch.md` to record the adaptation analysis, changes and validation notes
+
+### Changed
+
++ Bumped module version to `v1.0.3` and `versionCode` to `4`
++ Updated Web UI root description and module scanning logic to include APatch environments
++ Added an APatch unmount compatibility path that currently follows the Magisk-style `/data/adb` cleanup strategy
+
+### Notes
+
++ This release focuses on APatch compatibility for the r0z runtime path
++ Existing KernelSU / Magisk behavior is preserved
++ Release package naming follows `r0z-v1.0.3-4-<buildType>.zip`
+
 ## v1.0.2
 
 ### Changed

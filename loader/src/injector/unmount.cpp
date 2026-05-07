@@ -84,3 +84,9 @@ void revert_unmount_magisk() {
         lazy_unmount(s.data());
     }
 }
+
+void revert_unmount_apatch() {
+    // APatch 11142 uses /data/adb/modules plus /data/adb/ap working files.
+    // Its current mount layout is closer to Magisk's magic-mount path than KSU overlayfs.
+    revert_unmount_magisk();
+}

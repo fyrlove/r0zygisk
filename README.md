@@ -46,7 +46,7 @@ Release artifacts will be generated under `module/build/outputs/release/`.
 Current release zip naming:
 
 ```text
-r0z-v1.0.2-3-release.zip
+r0z-v1.0.3-4-release.zip
 ```
 
 If `module/private_key` and `module/public_key` are absent, the module still builds but will not be signed.

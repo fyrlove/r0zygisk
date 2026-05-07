@@ -42,10 +42,17 @@ elif [ "$BOOTMODE" ] && [ "$MAGISK_VER_CODE" ]; then
     ui_print "! Please update Magisk to latest version"
     abort    "*********************************************************"
   fi
+elif [ "$BOOTMODE" ] && [ "$APATCH" = "true" ]; then
+  ui_print "- Installing from APatch app"
+  if [ "$APATCH_VER_CODE" ]; then
+    ui_print "- APatch version: $APATCH_VER_CODE"
+  else
+    ui_print "- APatch version: unknown"
+  fi
 else
   ui_print "*********************************************************"
   ui_print "! Install from recovery is not supported"
-  ui_print "! Please install from KernelSU or Magisk app"
+  ui_print "! Please install from KernelSU, Magisk or APatch app"
   abort    "*********************************************************"
 fi
 

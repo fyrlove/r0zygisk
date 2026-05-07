@@ -1,9 +1,9 @@
+use crate::constants::MIN_MAGISK_VERSION;
+use crate::utils::LateInit;
+use log::info;
 use std::fs;
 use std::os::android::fs::MetadataExt;
-use crate::constants::MIN_MAGISK_VERSION;
 use std::process::{Command, Stdio};
-use log::info;
-use crate::utils::LateInit;
 
 const MAGISK_OFFICIAL: &str = "com.topjohnwu.magisk";
 const MAGISK_THIRD_PARTIES: &[(&str, &str)] = &[
@@ -28,9 +28,9 @@ pub fn get_magisk() -> Option<Version> {
             .and_then(|child| child.wait_with_output().ok())
             .and_then(|output| String::from_utf8(output.stdout).ok())
             .map(|version| {
-                let third_party = MAGISK_THIRD_PARTIES.iter().find_map(|v| {
-                    version.contains(v.0).then_some(v.1)
-                });
+                let third_party = MAGISK_THIRD_PARTIES
+                    .iter()
+                    .find_map(|v| version.contains(v.0).then_some(v.1));
                 VARIANT.init(third_party.unwrap_or(MAGISK_OFFICIAL));
                 info!("Magisk variant: {}", *VARIANT);
             });
@@ -104,7 +104,9 @@ pub fn uid_should_umount(uid: i32) -> bool {
 pub fn uid_is_manager(uid: i32) -> bool {
     let output = Command::new("magisk")
         .arg("--sqlite")
-        .arg(format!("select value from strings where key=\"requester\" limit 1"))
+        .arg(format!(
+            "select value from strings where key=\"requester\" limit 1"
+        ))
         .stdout(Stdio::piped())
         .spawn()
         .ok()

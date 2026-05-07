@@ -145,6 +145,8 @@ DCL_HOOK_FUNC(int, unshare, int flags) {
         if (g_ctx->flags[DO_REVERT_UNMOUNT]) {
             if (g_ctx->info_flags & PROCESS_ROOT_IS_KSU) {
                 revert_unmount_ksu();
+            } else if (g_ctx->info_flags & PROCESS_ROOT_IS_APATCH) {
+                revert_unmount_apatch();
             } else if (g_ctx->info_flags & PROCESS_ROOT_IS_MAGISK) {
                 revert_unmount_magisk();
             }
@@ -583,7 +585,8 @@ void ZygiskContext::run_modules_post() {
 void ZygiskContext::app_specialize_pre() {
     flags[APP_SPECIALIZE] = true;
     info_flags = r0zd::GetProcessFlags(g_ctx->args.app->uid);
-    if ((info_flags & (PROCESS_IS_MANAGER | PROCESS_ROOT_IS_MAGISK)) == (PROCESS_IS_MANAGER | PROCESS_ROOT_IS_MAGISK)) {
+    if ((info_flags & PROCESS_IS_MANAGER) != 0 &&
+        (info_flags & (PROCESS_ROOT_IS_MAGISK | PROCESS_ROOT_IS_APATCH)) != 0) {
         LOGI("current uid %d is manager!", g_ctx->args.app->uid);
         setenv("ZYGISK_ENABLED", "1", 1);
     } else {

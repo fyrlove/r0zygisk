@@ -5,8 +5,8 @@ use anyhow::{bail, Result};
 use log::{debug, error, info, trace, warn};
 use passfd::FdPassingExt;
 use rustix::fs::{fcntl_setfd, FdFlags};
-use std::fs;
 use std::fmt::Write as _;
+use std::fs;
 use std::io::Error;
 use std::ops::Deref;
 use std::os::fd::{AsFd, OwnedFd, RawFd};
@@ -49,8 +49,14 @@ pub fn main() -> Result<()> {
     debug!("Daemon architecture: {arch}");
     let modules = load_modules(arch)?;
     let daemon_info = match root_impl::get_impl() {
-        root_impl::RootImpl::KernelSU | root_impl::RootImpl::Magisk => {
-            format!("Root: {:?},module_count: {}", root_impl::get_impl(), modules.len())
+        root_impl::RootImpl::APatch
+        | root_impl::RootImpl::KernelSU
+        | root_impl::RootImpl::Magisk => {
+            format!(
+                "Root: {:?},module_count: {}",
+                root_impl::get_impl(),
+                modules.len()
+            )
         }
         _ => format!("Invalid root implementation: {:?}", root_impl::get_impl()),
     };
@@ -95,7 +101,11 @@ pub fn main() -> Result<()> {
 
 fn update_status_json(zygote_injected: bool, daemon_info: &str) -> Result<()> {
     let mut raw = String::new();
-    let arch_suffix = if cfg!(target_pointer_width = "64") { "64" } else { "32" };
+    let arch_suffix = if cfg!(target_pointer_width = "64") {
+        "64"
+    } else {
+        "32"
+    };
     let _ = write!(
         raw,
         "daemon{}:running,Root: {:?},module_count: {}",
@@ -107,7 +117,11 @@ fn update_status_json(zygote_injected: bool, daemon_info: &str) -> Result<()> {
             .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or(0)
     );
-    let zygote_state = if zygote_injected { "injected" } else { "not_injected" };
+    let zygote_state = if zygote_injected {
+        "injected"
+    } else {
+        "not_injected"
+    };
     let json = if cfg!(target_pointer_width = "64") {
         format!(
             "{{\n  \"monitor\": \"native_bridge\",\n  \"mode\": \"native_bridge\",\n  \"stop_reason\": \"\",\n  \"zygote64\": \"{}\",\n  \"daemon64\": \"running\",\n  \"daemon64_info\": {:?},\n  \"zygote32\": \"unsupported\",\n  \"daemon32\": \"unsupported\",\n  \"daemon32_info\": \"\",\n  \"raw\": {:?}\n}}\n",
@@ -263,6 +277,7 @@ fn handle_daemon_action(
                 }
             }
             match root_impl::get_impl() {
+                root_impl::RootImpl::APatch => flags |= ProcessFlags::PROCESS_ROOT_IS_APATCH,
                 root_impl::RootImpl::KernelSU => flags |= ProcessFlags::PROCESS_ROOT_IS_KSU,
                 root_impl::RootImpl::Magisk => flags |= ProcessFlags::PROCESS_ROOT_IS_MAGISK,
                 _ => panic!("wrong root impl: {:?}", root_impl::get_impl()),

@@ -46,7 +46,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 当前 release 包命名：
 
 ```text
-r0z-v1.0.2-3-release.zip
+r0z-v1.0.3-4-release.zip
 ```
 
 如果 `module/private_key` 和 `module/public_key` 不存在，模块仍然可以正常构建，但生成的是未签名包。
