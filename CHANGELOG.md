@@ -11,8 +11,6 @@ All notable changes to this project will be documented in this file.
 + Added APatch process flag propagation to the injector/runtime path
 + Added APatch manager handling in app specialize flow
 + Added APatch install-branch handling in the module installer
-+ Added `适配apatch.md` to record the adaptation analysis, changes and validation notes
-
 ### Changed
 
 + Bumped module version to `v1.0.3` and `versionCode` to `4`
