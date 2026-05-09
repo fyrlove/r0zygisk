@@ -23,6 +23,7 @@ r0z 是一个独立实现的 zygisk，提供对 zygisk API 的支持，可用于
 ### 环境要求
 
 + JDK 17
++ python 3.11.x
 + Android SDK
 + Android NDK `26.1.10909125`
 + Rust nightly
