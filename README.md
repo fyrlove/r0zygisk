@@ -23,6 +23,7 @@ Standalone implementation of zygisk, providing zygisk API support for KernelSU a
 ### Environment
 
 + JDK 17
++ Python 3.11.x
 + Android SDK
 + Android NDK 26.1.10909125
 + Rust nightly
